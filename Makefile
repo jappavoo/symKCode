@@ -1,7 +1,7 @@
 VERSION=linux-5.14
 TGZ=${VERSION}.tar.gz
 KSRCURL=https://mirrors.edge.kernel.org/pub/linux/kernel/v5.x/${TGZ}
-VERSION_INSTALLED=${VERSION}_installed
+VERSION_INSTALLED=.${VERSION}_installed
 ARCH=x86
 
 .PHONEY: clean dist-clean

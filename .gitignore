@@ -1,0 +1,4 @@
+*.gz
+linux-*/
+*~
+.*_installed 
