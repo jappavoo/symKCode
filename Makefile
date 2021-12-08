@@ -22,4 +22,4 @@ clean:
 	-rm -rf $(wildcard *.i)
 
 dist-clean:
-	-rm -rf $(wildcard ${VERSION_INSTALLED} ${VERSION} ${TGZ})
+	-rm -rf $(wildcard ${VERSION_INSTALLED} ${VERSION} ${TGZ} *~ )
