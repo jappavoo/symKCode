@@ -19,6 +19,28 @@ myvirtnet.c.i: myvirtnet.c
 myvirtnet.o: myvirtnet.c.i
 	gcc ${CFLAGS} ${JACFLAGS} -no-integrated-cpp $< -o $@
 
+virtio_net.c: ${VERSION}/drivers/net/virtio_net.c
+	cp $< $@
+
+virtio_net.c.i: virtio_net.c
+	gcc -E ${CPPFLAGS} $< > $@
+
+virtio_net.o: virtio_net.c.i
+	gcc ${CFLAGS} ${JACFLAGS} -no-integrated-cpp $< -o $@
+
+sym_virtio_net.c: virtio_net.c 
+	cp virtio_net.c $@
+	patch sym_virtio_net.c < sym_virtio_net.patch
+
+sym_virtio_net.c.i: sym_virtio_net.c
+	gcc -E ${CPPFLAGS} $< > $@
+
+sym_virtio_net.o: sym_virtio_net.c.i
+	gcc ${CFLAGS} ${JACFLAGS} -no-integrated-cpp $< -o $@
+
+sym_virtio_net.patch: virtio_net.c sym_virtio_net.c
+	diff -u virtio_net.c sym_virtio_net.c >$@; [ $$? -eq 1 ]
+
 ${TGZ}:
 	wget ${KSRCURL}
 
@@ -27,7 +49,7 @@ ${VERSION_INSTALLED}: ${TGZ}
 	touch ${VERSION_INSTALLED}
 
 clean:
-	-rm -rf $(wildcard *.i)
+	-rm -rf $(wildcard *.i virtio_net.c)
 
 dist-clean:
-	-rm -rf $(wildcard ${VERSION_INSTALLED} ${VERSION} ${TGZ} *~ )
+	-rm -rf $(wildcard ${VERSION_INSTALLED} ${VERSION} ${TGZ}  *~ )
