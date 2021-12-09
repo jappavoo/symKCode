@@ -1,0 +1,32 @@
+--- virtio_net.c	2021-12-09 22:03:37.879931000 +0000
++++ sym_virtio_net.c	2021-12-09 22:06:39.128882000 +0000
+@@ -328,6 +328,7 @@
+ 	}
+ }
+ 
++#if 0
+ static void virtqueue_napi_complete(struct napi_struct *napi,
+ 				    struct virtqueue *vq, int processed)
+ {
+@@ -341,6 +342,7 @@
+ 		virtqueue_disable_cb(vq);
+ 	}
+ }
++#endif
+ 
+ static void skb_xmit_done(struct virtqueue *vq)
+ {
+@@ -1541,10 +1543,12 @@
+ 
+ 	received = virtnet_receive(rq, budget, &xdp_xmit);
+ 
++#if 0	
+ 	/* Out of packets? */
+ 	if (received < budget)
+ 		virtqueue_napi_complete(napi, rq->vq, received);
+-
++#endif
++	
+ 	if (xdp_xmit & VIRTIO_XDP_REDIR)
+ 		xdp_do_flush();
+ 

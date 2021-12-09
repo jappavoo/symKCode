@@ -224,11 +224,12 @@ struct padded_vnet_hdr {
 		__netif_tx_unlock(txq);                                 \
 }
 
+#if 1
 static void virtnet_poll_cleantx(struct receive_queue *rq) {}
 
-static int virtnet_receive(struct receive_queue *rq, int budget,
-			   unsigned int *xdp_xmit) { return -1; }
-
+extern int virtnet_receive(struct receive_queue *rq, int budget,
+			   unsigned int *xdp_xmit); // { return -1; }
+#endif
 
 int virtnet_poll(struct napi_struct *napi, int budget)
 {
