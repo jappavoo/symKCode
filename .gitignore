@@ -1,4 +1,7 @@
 *.gz
 linux-*/
 *~
-.*_installed 
+.*_installed
+*.i
+*.o
+*.out
