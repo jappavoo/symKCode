@@ -227,9 +227,111 @@ struct padded_vnet_hdr {
 #if 1
 static void virtnet_poll_cleantx(struct receive_queue *rq) {}
 
-extern int virtnet_receive(struct receive_queue *rq, int budget,
-			   unsigned int *xdp_xmit); // { return -1; }
+//extern int virtnet_receive(struct receive_queue *rq, int budget,
+//			   unsigned int *xdp_xmit); // { return -1; }
 #endif
+
+static void receive_buf(struct virtnet_info *vi, struct receive_queue *rq,
+			void *buf, unsigned int len, void **ctx,
+			unsigned int *xdp_xmit,
+			struct virtnet_rq_stats *stats)
+{
+	struct net_device *dev = vi->dev;
+	struct sk_buff *skb;
+	struct virtio_net_hdr_mrg_rxbuf *hdr;
+
+	if (unlikely(len < vi->hdr_len + ETH_HLEN)) {
+		pr_debug("%s: short packet %i\n", dev->name, len);
+		dev->stats.rx_length_errors++;
+		if (vi->mergeable_rx_bufs) {
+			put_page(virt_to_head_page(buf));
+		} else if (vi->big_packets) {
+			give_pages(rq, buf);
+		} else {
+			put_page(virt_to_head_page(buf));
+		}
+		return;
+	}
+
+	if (vi->mergeable_rx_bufs)
+		skb = receive_mergeable(dev, vi, rq, buf, ctx, len, xdp_xmit,
+					stats);
+	else if (vi->big_packets)
+		skb = receive_big(dev, vi, rq, buf, len, stats);
+	else
+		skb = receive_small(dev, vi, rq, buf, ctx, len, xdp_xmit, stats);
+
+	if (unlikely(!skb))
+		return;
+
+	hdr = skb_vnet_hdr(skb);
+
+	if (hdr->hdr.flags & VIRTIO_NET_HDR_F_DATA_VALID)
+		skb->ip_summed = CHECKSUM_UNNECESSARY;
+
+	if (virtio_net_hdr_to_skb(skb, &hdr->hdr,
+				  virtio_is_little_endian(vi->vdev))) {
+		net_warn_ratelimited("%s: bad gso: type: %u, size: %u\n",
+				     dev->name, hdr->hdr.gso_type,
+				     hdr->hdr.gso_size);
+		goto frame_err;
+	}
+
+	skb_record_rx_queue(skb, vq2rxq(rq->vq));
+	skb->protocol = eth_type_trans(skb, dev);
+	pr_debug("Receiving skb proto 0x%04x len %i type %i\n",
+		 ntohs(skb->protocol), skb->len, skb->pkt_type);
+
+	napi_gro_receive(&rq->napi, skb);
+	return;
+
+frame_err:
+	dev->stats.rx_frame_errors++;
+	dev_kfree_skb(skb);
+}
+
+static int virtnet_receive(struct receive_queue *rq, int budget,
+			   unsigned int *xdp_xmit)
+{
+	struct virtnet_info *vi = rq->vq->vdev->priv;
+	struct virtnet_rq_stats stats = {};
+	unsigned int len;
+	void *buf;
+	int i;
+
+	if (!vi->big_packets || vi->mergeable_rx_bufs) {
+		void *ctx;
+
+		while (stats.packets < budget &&
+		       (buf = virtqueue_get_buf_ctx(rq->vq, &len, &ctx))) {
+			receive_buf(vi, rq, buf, len, ctx, xdp_xmit, &stats);
+			stats.packets++;
+		}
+	} else {
+		while (stats.packets < budget &&
+		       (buf = virtqueue_get_buf(rq->vq, &len)) != NULL) {
+			receive_buf(vi, rq, buf, len, NULL, xdp_xmit, &stats);
+			stats.packets++;
+		}
+	}
+
+	if (rq->vq->num_free > min((unsigned int)budget, virtqueue_get_vring_size(rq->vq)) / 2) {
+		if (!try_fill_recv(vi, rq, GFP_ATOMIC))
+			schedule_delayed_work(&vi->refill, 0);
+	}
+
+	u64_stats_update_begin(&rq->stats.syncp);
+	for (i = 0; i < VIRTNET_RQ_STATS_LEN; i++) {
+		size_t offset = virtnet_rq_stats_desc[i].offset;
+		u64 *item;
+
+		item = (u64 *)((u8 *)&rq->stats + offset);
+		*item += *(u64 *)((u8 *)&stats + offset);
+	}
+	u64_stats_update_end(&rq->stats.syncp);
+
+	return stats.packets;
+}
 
 int virtnet_poll(struct napi_struct *napi, int budget)
 {

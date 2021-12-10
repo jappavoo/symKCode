@@ -1,0 +1,37 @@
+#!/bin/bash
+#set -x
+USAGE="$0 <elf> <sourcefile> <lineno>"
+
+READELF=readelf
+
+elf=$1
+file=$2 
+linenum=$3
+
+
+if [[ -z $elf || -z $file || -z $linenum ]]; then
+  echo $USAGE
+  exit -1
+fi
+
+
+if [[ ! -a $elf ]]; then
+  echo "ERROR: $vmlinux does not exist"
+  echo $USAGE
+  exit -1
+fi
+
+
+read -a values  <  <($READELF --debug-dump=decodedline ${elf} | grep "${file}.*${linenum}.*x" )
+
+offset=${values[2]}
+offset=${offset##0x}
+
+if [[ -z $offset ]]; then
+  echo "ERROR: offset for file line not found"
+  echo $USAGE
+  exit -1
+fi
+
+echo $offset
+exit 0
