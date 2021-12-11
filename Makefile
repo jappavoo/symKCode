@@ -12,6 +12,9 @@ CFLAGS=-Wall -Wundef -Werror=strict-prototypes -Wno-trigraphs -fno-strict-aliasi
 
 all: myvirt virtnet symvirt lkvirt 
 
+opcodes:
+	./ifopcodes > opcodes
+
 main.o: main.c
 	gcc $< -c -o $@
 
