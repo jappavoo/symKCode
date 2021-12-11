@@ -8,12 +8,49 @@ CPPFLAGS=-nostdinc -isystem /usr/lib/gcc/x86_64-linux-gnu/9/include  -fmacro-pre
 JACFLAGS=-Wno-unused-variable
 #PICFLAG=-fno-PIE 
 CFLAGS=-Wall -Wundef -Werror=strict-prototypes -Wno-trigraphs -fno-strict-aliasing -fno-common -fshort-wchar ${PICFLAG} -Werror=implicit-function-declaration -Werror=implicit-int -Werror=return-type -Wno-format-security -std=gnu89 -mno-sse -mno-mmx -mno-sse2 -mno-3dnow -mno-avx -fcf-protection=none -m64 -falign-jumps=1 -falign-loops=1 -mno-80387 -mno-fp-ret-in-387 -mpreferred-stack-boundary=3 -mskip-rax-setup -mtune=generic -mno-red-zone -Wno-sign-compare -fno-asynchronous-unwind-tables -mindirect-branch=thunk-extern -mindirect-branch-register -fno-jump-tables -fno-delete-null-pointer-checks -Wno-frame-address -Wno-format-truncation -Wno-format-overflow -Wno-address-of-packed-member -O2 --param=allow-store-data-races=0 -Wframe-larger-than=2048 -fstack-protector-strong -Wimplicit-fallthrough=5 -Wno-unused-but-set-variable -Wno-unused-const-variable -fomit-frame-pointer -fno-stack-clash-protection -Wdeclaration-after-statement -Wvla -Wno-pointer-sign -Wno-stringop-truncation -Wno-array-bounds -Wno-stringop-overflow -Wno-restrict -Wno-maybe-uninitialized -fno-strict-overflow -fno-stack-check -fconserve-stack -Werror=date-time -Werror=incompatible-pointer-types -Werror=designated-init -Wno-packed-not-aligned  -c 
+
+LINE=1545
+FILE=virtio_net.c
+VMLINUX=linux-5.14/vmlinux
+
 .PHONEY: clean dist-clean all download extract config prepare 
 
-all: myvirt virtnet symvirt lkvirt 
+all: old.dump new.dump myvirt virtnet symvirt lkvirt 
 
-opcodes:
-	./ifopcodes > opcodes
+new.o: new.S
+	gcc -c new.S -o new.o
+
+new.opcodes: new.o
+	./bin/getOpcodes $< 0: > $@
+
+new.xxd: new.opcodes
+	cut -f 2 $< > $@
+
+new.bin: new.xxd
+	xxd -ps -r $< > $@
+
+new.dump: new.bin old.addr
+	ndisasm -o 0x$(shell cat old.addr) -b 64 -p intel $< > $@
+
+#opcodes:
+#	./ifopcodes > opcodes
+
+
+old.addr: 
+	./bin/getLineAddr ${VMLINUX} ${FILE} ${LINE} > $@
+#	head -1 $<  | cut -f 1  -d ':' > $@
+
+old.opcodes: old.addr
+	./bin/getOpcodes ${VMLINUX} $(shell cat old.addr) > $@
+
+old.xxd: old.opcodes
+	cut -f 2 $< > $@
+
+old.bin: old.xxd
+	xxd -ps -r $< > $@
+
+old.dump: old.bin old.addr
+	ndisasm -o 0x$(shell cat old.addr) -b 64 -p intel $< > $@
 
 main.o: main.c
 	gcc $< -c -o $@
@@ -88,7 +125,7 @@ prepare: ${VERSION}/arch/${ARCH}/include/generated/asm/rwonce.h
 
 #$(VERSION}/include/arch/
 clean:
-	-rm -rf $(wildcard *.i *.o *.out *~ ${VERSION}/drivers/net/virtio_net.o virtio_net.c sym_virtio_net.c lk_build_cmd)
+	-rm -rf $(wildcard *.i *.o *.out *~ ${VERSION}/drivers/net/virtio_net.o virtio_net.c sym_virtio_net.c lk_build_cmd *.bin *.dump *.addr *.opcodes *.xxd)
 
 dist-clean: clean
 	-rm -rf $(wildcard ${VERSION_INSTALLED} ${VERSION} ${TGZ} )

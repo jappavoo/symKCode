@@ -1,0 +1,38 @@
+#!/bin/bash
+#set -x
+USAGE="$0 <elf> <addr> [n]"
+
+READELF=readelf
+
+elf=$1
+addr=$2
+n=$3
+
+
+if [[ -z $elf || -z $addr ]]; then
+  echo $USAGE
+  exit -1
+fi
+
+#if [[ -a $addr ]]; then
+#    addr=$(cat $addr)
+#fi
+
+if [[ ! -a $elf ]]; then
+  echo "ERROR: $vmlinux does not exist"
+  echo $USAGE
+  exit -1
+fi
+
+[[ -z $n ]] && n=1
+
+opcodes="$(objdump -M intel -d $elf | grep -A $n $addr )"
+
+if [[ -z $opcodes ]]; then
+  echo "ERROR: offset for file line not found"
+  echo $USAGE
+  exit -1
+fi
+
+echo "$opcodes"
+exit 0
